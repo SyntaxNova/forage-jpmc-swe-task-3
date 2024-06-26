@@ -1,0 +1,123 @@
+From 67e419ca1d8d59f53738cd9c007b9fa2443695c5 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E2=80=9CAtharva?= <atharvacodes@gmail.com>
+Date: Wed, 26 Jun 2024 10:50:38 +0530
+Subject: [PATCH] Task 3 Completed
+
+---
+ src/DataManipulator.ts | 32 ++++++++++++++++++++++----------
+ src/Graph.tsx          | 31 ++++++++++++++++++-------------
+ 2 files changed, 40 insertions(+), 23 deletions(-)
+
+diff --git a/src/DataManipulator.ts b/src/DataManipulator.ts
+index 7f62295..31d3dd3 100644
+--- a/src/DataManipulator.ts
++++ b/src/DataManipulator.ts
+@@ -1,20 +1,32 @@
+ import { ServerRespond } from './DataStreamer';
+ 
+ export interface Row {
+-  stock: string,
+-  top_ask_price: number,
++  price_abc:number,
++  price_def:number,
++  ratio:number,
+   timestamp: Date,
++  upper_bond:number,
++  lower_bond: number,
++  trigger_alert: number | undefined
+ }
+ 
+ 
+ export class DataManipulator {
+-  static generateRow(serverResponds: ServerRespond[]) {
+-    return serverResponds.map((el: any) => {
+-      return {
+-        stock: el.stock,
+-        top_ask_price: el.top_ask && el.top_ask.price || 0,
+-        timestamp: el.timestamp,
+-      };
+-    })
++  static generateRow(serverRespond: ServerRespond[]): Row {
++    const priceABC = (serverRespond[0].top_ask.price + serverRespond[0].top_bid.price) / 2;
++    const priceDEF = (serverRespond[1].top_ask.price + serverRespond[1].top_bid.price) / 2;
++    const upperBound = 1 + 0.05;
++    const lowerBound = 1 - 0.05;
++    const ratio = priceABC / priceDEF; 
++    return {
++      price_abc: priceABC,
++      price_def: priceDEF,
++      ratio, // Update this line to use the 'ratio' variable
++      timestamp: serverRespond[0].timestamp > serverRespond[1].timestamp ?
++       serverRespond[0].timestamp : serverRespond[1].timestamp,
++      upper_bond: upperBound,
++      lower_bond: lowerBound,
++      trigger_alert: (ratio > upperBound || ratio < lowerBound)? ratio : undefined,
++    };
+   }
+ }
+diff --git a/src/Graph.tsx b/src/Graph.tsx
+index 277797d..0234a78 100644
+--- a/src/Graph.tsx
++++ b/src/Graph.tsx
+@@ -1,5 +1,5 @@
+ import React, { Component } from 'react';
+-import { Table } from '@finos/perspective';
++import { Table, TableData } from '@finos/perspective';
+ import { ServerRespond } from './DataStreamer';
+ import { DataManipulator } from './DataManipulator';
+ import './Graph.css';
+@@ -23,10 +23,13 @@ class Graph extends Component<IProps, {}> {
+     const elem = document.getElementsByTagName('perspective-viewer')[0] as unknown as PerspectiveViewerElement;
+ 
+     const schema = {
+-      stock: 'string',
+-      top_ask_price: 'float',
+-      top_bid_price: 'float',
++      price_abc: 'float',
++      price_def: 'flaot',
++      ratio: 'flaot',
+       timestamp: 'date',
++      upper_bond:'float',
++      lower_bond:'float',
++      trigger_alert:'flaot',
+     };
+ 
+     if (window.perspective && window.perspective.worker()) {
+@@ -36,23 +39,25 @@ class Graph extends Component<IProps, {}> {
+       // Load the `table` in the `<perspective-viewer>` DOM reference.
+       elem.load(this.table);
+       elem.setAttribute('view', 'y_line');
+-      elem.setAttribute('column-pivots', '["stock"]');
+-      elem.setAttribute('row-pivots', '["timestamp"]');
+-      elem.setAttribute('columns', '["top_ask_price"]');
++      elem.setAttribute('row-pivots','["timestamp"]');
++      elem.setAttribute('column' , '["lower_bond" , "upper_bond" , "trigger_alert"]');
+       elem.setAttribute('aggregates', JSON.stringify({
+-        stock: 'distinctcount',
+-        top_ask_price: 'avg',
+-        top_bid_price: 'avg',
+-        timestamp: 'distinct count',
++        price_abc:'avg',
++        price_def:'avg',
++        ratio:'avg',
++        timestamp:'distinct count',
++        upper_bound:'avg',
++        lower_bond:'avg',
++        trigger_alert:'avg',
+       }));
+     }
+   }
+ 
+   componentDidUpdate() {
+     if (this.table) {
+-      this.table.update(
++      this.table.update([
+         DataManipulator.generateRow(this.props.data),
+-      );
++      ] as unknown as TableData);
+     }
+   }
+ }
+-- 
+2.34.1
+
